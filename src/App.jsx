@@ -3,6 +3,24 @@ import { SignJWT, jwtVerify, decodeJwt, decodeProtectedHeader } from 'jose';
 import { Shield, ShieldCheck, ShieldX, Calendar, Clock, Copy, History, X, AlertCircle, CheckCircle } from 'lucide-react';
 
 function App() {
+  // RFC 7519 Standard Claims
+  const STANDARD_HEADER_CLAIMS = [
+    { key: 'alg', label: 'Algorithm', default: 'HS256' },
+    { key: 'typ', label: 'Type', default: 'JWT' },
+    { key: 'cty', label: 'Content Type', default: '' },
+    { key: 'kid', label: 'Key ID', default: '' }
+  ];
+  
+  const STANDARD_PAYLOAD_CLAIMS = [
+    { key: 'iss', label: 'Issuer', default: '' },
+    { key: 'sub', label: 'Subject', default: '' },
+    { key: 'aud', label: 'Audience', default: '' },
+    { key: 'exp', label: 'Expiration', default: Math.floor(Date.now() / 1000) + 3600 },
+    { key: 'nbf', label: 'Not Before', default: Math.floor(Date.now() / 1000) },
+    { key: 'iat', label: 'Issued At', default: Math.floor(Date.now() / 1000) },
+    { key: 'jti', label: 'JWT ID', default: '' }
+  ];
+
   const defaultHeader = { alg: 'HS256', typ: 'JWT' };
   const defaultPayload = { 
     sub: '1234567890', 
@@ -17,7 +35,7 @@ function App() {
   const [secret, setSecret] = useState('your-256-bit-secret');
   const [isVerified, setIsVerified] = useState(null);
   const [algorithmSupported, setAlgorithmSupported] = useState(true);
-  const [tokenParts, setTokenParts] = useState({ header: '', payload: '', signature: '', error: false });
+  const [tokenParts, setTokenParts] = useState({ header: '', payload: '', signature: '', error: false, errorType: '', errorMessage: '' });
   const [expEditMode, setExpEditMode] = useState('epoch'); // 'epoch', 'gmt', 'local'
   const [expDateValue, setExpDateValue] = useState('');
   
@@ -99,7 +117,7 @@ function App() {
   // Update token parts for color coding
   const updateTokenParts = (jwtToken) => {
     if (!jwtToken || jwtToken.trim() === '') {
-      setTokenParts({ header: '', payload: '', signature: '', error: false });
+      setTokenParts({ header: '', payload: '', signature: '', error: false, errorType: '', errorMessage: '' });
       return;
     }
     
@@ -109,14 +127,18 @@ function App() {
         header: parts[0],
         payload: parts[1],
         signature: parts[2],
-        error: false
+        error: false,
+        errorType: '',
+        errorMessage: ''
       });
     } else {
       setTokenParts({
         header: '',
         payload: '',
         signature: '',
-        error: true
+        error: true,
+        errorType: 'invalidFormat',
+        errorMessage: 'Invalid JWT format. Token must have 3 parts separated by dots (header.payload.signature)'
       });
     }
   };
@@ -129,7 +151,15 @@ function App() {
       const payloadObj = JSON.parse(payload);
       generateToken(headerObj, payloadObj, secret);
     } catch (error) {
-      // Invalid JSON, wait for valid input
+      // Invalid JSON - show error in token parts
+      setTokenParts({
+        header: '',
+        payload: '',
+        signature: '',
+        error: true,
+        errorType: 'invalidJson',
+        errorMessage: 'Invalid JSON in Header'
+      });
     }
   };
 
@@ -146,13 +176,34 @@ function App() {
         updateExpEditValue(payloadObj.exp);
       }
     } catch (error) {
-      // Invalid JSON, wait for valid input
+      // Invalid JSON - show error in token parts
+      setTokenParts({
+        header: '',
+        payload: '',
+        signature: '',
+        error: true,
+        errorType: 'invalidJson',
+        errorMessage: 'Invalid JSON in Payload'
+      });
     }
   };
 
   // Handle secret change
   const handleSecretChange = (value) => {
     setSecret(value);
+    
+    if (!value || value.trim() === '') {
+      setTokenParts({
+        header: '',
+        payload: '',
+        signature: '',
+        error: true,
+        errorType: 'emptySecret',
+        errorMessage: 'Secret key cannot be empty'
+      });
+      return;
+    }
+    
     try {
       const headerObj = JSON.parse(header);
       const payloadObj = JSON.parse(payload);
@@ -354,7 +405,7 @@ function App() {
       return (
         <div className="flex items-center gap-2 p-3 bg-red-900/20 border border-red-500/30 rounded text-red-400">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          <span className="text-sm">Invalid JWT format. Token must have 3 parts separated by dots (header.payload.signature)</span>
+          <span className="text-sm">{tokenParts.errorMessage}</span>
         </div>
       );
     }
@@ -370,6 +421,75 @@ function App() {
         <span className="text-cyan-500 font-semibold">{tokenParts.signature}</span>
       </div>
     );
+  };
+
+  // Toggle standard claim in header or payload
+  const toggleClaim = (claimKey, isHeader) => {
+    try {
+      const jsonString = isHeader ? header : payload;
+      const obj = JSON.parse(jsonString);
+      
+      if (obj.hasOwnProperty(claimKey)) {
+        // Remove claim
+        delete obj[claimKey];
+      } else {
+        // Add claim with default value
+        const claimList = isHeader ? STANDARD_HEADER_CLAIMS : STANDARD_PAYLOAD_CLAIMS;
+        const claim = claimList.find(c => c.key === claimKey);
+        obj[claimKey] = claim?.default ?? '';
+      }
+      
+      const newJsonString = JSON.stringify(obj, null, 2);
+      if (isHeader) {
+        setHeader(newJsonString);
+      } else {
+        setPayload(newJsonString);
+      }
+      
+      // Manually trigger token generation
+      const headerObj = isHeader ? JSON.parse(newJsonString) : JSON.parse(header);
+      const payloadObj = isHeader ? JSON.parse(payload) : JSON.parse(newJsonString);
+      generateToken(headerObj, payloadObj, secret);
+      
+      // Update exp edit value if exp was added/removed
+      if (!isHeader && claimKey === 'exp' && payloadObj.exp) {
+        updateExpEditValue(payloadObj.exp);
+      }
+    } catch (error) {
+      console.error('Failed to toggle claim:', error);
+    }
+  };
+
+  // Render standard claims as toggleable badges
+  const renderClaimBadges = (claimList, isHeader) => {
+    try {
+      const jsonString = isHeader ? header : payload;
+      const obj = JSON.parse(jsonString);
+      
+      return (
+        <div className="flex flex-wrap gap-2 mt-2">
+          {claimList.map(claim => {
+            const isActive = obj.hasOwnProperty(claim.key);
+            return (
+              <button
+                key={claim.key}
+                onClick={() => toggleClaim(claim.key, isHeader)}
+                className={`px-2 py-1 rounded text-xs font-medium transition-all ${
+                  isActive
+                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/50 hover:bg-blue-500/30'
+                    : 'bg-gray-700/50 text-gray-500 border border-gray-600/30 hover:bg-gray-700'
+                }`}
+                title={`${claim.label} (${claim.key})${isActive ? ' - Click to remove' : ' - Click to add'}`}
+              >
+                {claim.key}
+              </button>
+            );
+          })}
+        </div>
+      );
+    } catch (error) {
+      return null;
+    }
   };
 
   return (
@@ -590,8 +710,9 @@ function App() {
               className="w-full h-48 bg-gray-900 text-white rounded p-4 font-mono text-sm border border-gray-600 focus:border-red-500 focus:outline-none resize-none"
               placeholder='{"alg": "HS256", "typ": "JWT"}'
             />
-            <div className="mt-2 text-xs text-gray-400">
-              Edit header fields to update the token
+            <div className="mt-2">
+              <div className="text-xs text-gray-400 mb-1">Standard Header Claims (RFC 7519):</div>
+              {renderClaimBadges(STANDARD_HEADER_CLAIMS, true)}
             </div>
           </div>
 
@@ -617,8 +738,9 @@ function App() {
               className="w-full h-48 bg-gray-900 text-white rounded p-4 font-mono text-sm border border-gray-600 focus:border-purple-500 focus:outline-none resize-none"
               placeholder='{"sub": "1234567890", "name": "John Doe"}'
             />
-            <div className="mt-2 text-xs text-gray-400">
-              Edit payload fields to update the token
+            <div className="mt-2">
+              <div className="text-xs text-gray-400 mb-1">Standard Payload Claims (RFC 7519):</div>
+              {renderClaimBadges(STANDARD_PAYLOAD_CLAIMS, false)}
             </div>
           </div>
         </div>
