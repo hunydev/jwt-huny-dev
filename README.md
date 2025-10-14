@@ -153,4 +153,5 @@ MIT
 ---
 
 Powered by jose • JavaScript module for JSON Web Tokens
+
 Made with ❤️ by [huny.dev](https://huny.dev)
