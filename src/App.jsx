@@ -17,7 +17,7 @@ function App() {
   const [secret, setSecret] = useState('your-256-bit-secret');
   const [isVerified, setIsVerified] = useState(null);
   const [algorithmSupported, setAlgorithmSupported] = useState(true);
-  const [tokenParts, setTokenParts] = useState({ header: '', payload: '', signature: '' });
+  const [tokenParts, setTokenParts] = useState({ header: '', payload: '', signature: '', error: false });
   const [expEditMode, setExpEditMode] = useState('epoch'); // 'epoch', 'gmt', 'local'
   const [expDateValue, setExpDateValue] = useState('');
   
@@ -95,12 +95,25 @@ function App() {
 
   // Update token parts for color coding
   const updateTokenParts = (jwtToken) => {
+    if (!jwtToken || jwtToken.trim() === '') {
+      setTokenParts({ header: '', payload: '', signature: '', error: false });
+      return;
+    }
+    
     const parts = jwtToken.split('.');
-    if (parts.length === 3) {
+    if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
       setTokenParts({
         header: parts[0],
         payload: parts[1],
-        signature: parts[2]
+        signature: parts[2],
+        error: false
+      });
+    } else {
+      setTokenParts({
+        header: '',
+        payload: '',
+        signature: '',
+        error: true
       });
     }
   };
@@ -326,6 +339,15 @@ function App() {
 
   // Format token with colors
   const formatTokenWithColors = () => {
+    if (tokenParts.error) {
+      return (
+        <div className="flex items-center gap-2 p-3 bg-red-900/20 border border-red-500/30 rounded text-red-400">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <span className="text-sm">Invalid JWT format. Token must have 3 parts separated by dots (header.payload.signature)</span>
+        </div>
+      );
+    }
+    
     if (!tokenParts.header) return null;
     
     return (
@@ -417,22 +439,26 @@ function App() {
             </div>
             
             <div className="mt-4 p-4 bg-gray-900 rounded border border-gray-700">
-              <div className="mb-2 text-xs text-gray-400">Decoded Token Parts:</div>
-              {formatTokenWithColors()}
-              <div className="mt-3 text-xs space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-red-500 font-semibold">■</span>
-                  <span className="text-gray-400">Header</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-purple-500 font-semibold">■</span>
-                  <span className="text-gray-400">Payload</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-cyan-500 font-semibold">■</span>
-                  <span className="text-gray-400">Signature</span>
-                </div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs text-gray-400">Decoded Token Parts:</div>
+                {!tokenParts.error && tokenParts.header && (
+                  <div className="flex items-center gap-4 text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-red-500 font-semibold">■</span>
+                      <span className="text-gray-400">Header</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-purple-500 font-semibold">■</span>
+                      <span className="text-gray-400">Payload</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-cyan-500 font-semibold">■</span>
+                      <span className="text-gray-400">Signature</span>
+                    </div>
+                  </div>
+                )}
               </div>
+              {formatTokenWithColors()}
             </div>
 
             {/* Token History Panel */}
