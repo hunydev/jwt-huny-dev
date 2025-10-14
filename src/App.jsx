@@ -2,6 +2,53 @@ import React, { useState, useEffect } from 'react';
 import { SignJWT, jwtVerify, decodeJwt, decodeProtectedHeader } from 'jose';
 import { Shield, ShieldCheck, ShieldX, Calendar, Clock, Copy, History, X, AlertCircle, CheckCircle } from 'lucide-react';
 
+// Modal component - moved outside to prevent recreation on every render
+const Modal = ({ isOpen, onClose, title, children, size = 'md', closeOnOutsideClick = true }) => {
+  if (!isOpen) return null;
+  
+  const sizeClasses = {
+    sm: 'max-w-md',
+    md: 'max-w-2xl',
+    lg: 'max-w-4xl',
+    xl: 'max-w-6xl'
+  };
+  
+  const handleOverlayClick = (e) => {
+    if (closeOnOutsideClick && e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+  
+  return (
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" 
+      onMouseDown={handleOverlayClick}
+    >
+      <div 
+        className={`bg-gray-800 rounded-lg shadow-2xl border border-gray-700 w-full ${sizeClasses[size]} max-h-[90vh] overflow-hidden flex flex-col`}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-4 border-b border-gray-700 flex-shrink-0">
+          <h2 className="text-xl font-semibold text-white">{title}</h2>
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onClick={onClose}
+            className="p-1 hover:bg-gray-700 rounded transition-colors"
+          >
+            <X className="w-5 h-5 text-gray-400 hover:text-white" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function App() {
   // RFC 7519 Standard Claims
   const STANDARD_HEADER_CLAIMS = [
@@ -46,6 +93,9 @@ function App() {
   const [showBatchMode, setShowBatchMode] = useState(false);
   const [batchTokens, setBatchTokens] = useState('');
   const [batchExpValue, setBatchExpValue] = useState('');
+  const [batchExpMode, setBatchExpMode] = useState('epoch');
+  const [processedBatchTokens, setProcessedBatchTokens] = useState([]);
+  const [batchErrors, setBatchErrors] = useState([]);
 
   // Load token history from localStorage
   useEffect(() => {
@@ -351,6 +401,15 @@ function App() {
     localStorage.removeItem('jwtTokenHistory');
     setShowHistory(false);
   };
+  
+  // Reset batch processing
+  const resetBatchProcessing = () => {
+    setBatchTokens('');
+    setBatchExpValue('');
+    setBatchExpMode('epoch');
+    setProcessedBatchTokens([]);
+    setBatchErrors([]);
+  };
 
   // Copy to clipboard
   const copyToClipboard = async (text, field) => {
@@ -364,17 +423,34 @@ function App() {
   };
 
   // Process batch tokens
-  const processBatchTokens = () => {
-    if (!batchExpValue || !batchTokens) return;
+  const processBatchTokens = async () => {
+    if (!batchExpValue || !batchTokens) {
+      setBatchErrors(['Please provide both tokens and expiration time']);
+      return;
+    }
     
     const tokens = batchTokens.split('\n').filter(t => t.trim());
-    const newExpTime = parseInt(batchExpValue);
+    let newExpTime;
     
-    if (isNaN(newExpTime)) return;
+    // Parse exp time based on mode
+    if (batchExpMode === 'epoch') {
+      newExpTime = parseInt(batchExpValue);
+    } else if (batchExpMode === 'gmt') {
+      newExpTime = Math.floor(new Date(batchExpValue + ':00Z').getTime() / 1000);
+    } else if (batchExpMode === 'local') {
+      newExpTime = Math.floor(new Date(batchExpValue).getTime() / 1000);
+    }
+    
+    if (isNaN(newExpTime)) {
+      setBatchErrors(['Invalid expiration time format']);
+      return;
+    }
     
     const processedTokens = [];
+    const errors = [];
     
-    for (const token of tokens) {
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
       try {
         const decodedHeader = decodeProtectedHeader(token.trim());
         const decodedPayload = decodeJwt(token.trim());
@@ -382,21 +458,27 @@ function App() {
         // Update exp
         decodedPayload.exp = newExpTime;
         
-        // Generate new token (sync operation not possible here, so we skip it)
+        // Generate new token with updated exp
+        const encodedSecret = new TextEncoder().encode(secret);
+        const newToken = await new SignJWT(decodedPayload)
+          .setProtectedHeader(decodedHeader)
+          .sign(encodedSecret);
+        
         processedTokens.push({
           original: token.trim(),
+          newToken: newToken,
           header: decodedHeader,
           payload: decodedPayload,
-          newExp: newExpTime
+          newExp: newExpTime,
+          lineNumber: i + 1
         });
       } catch (error) {
-        console.error('Failed to process token:', error);
+        errors.push(`Line ${i + 1}: Invalid JWT token format - ${error.message}`);
       }
     }
     
-    // For now, just show the results
-    alert(`Processed ${processedTokens.length} tokens. New exp: ${newExpTime}`);
-    setShowBatchMode(false);
+    setProcessedBatchTokens(processedTokens);
+    setBatchErrors(errors);
   };
 
   // Format token with colors
@@ -592,97 +674,6 @@ function App() {
               {formatTokenWithColors()}
             </div>
 
-            {/* Token History Panel */}
-            {showHistory && (
-              <div className="mt-4 p-4 bg-gray-900 rounded border border-gray-700">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-blue-400">Token History (Last 10)</h3>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={clearHistory}
-                      className="text-xs text-red-400 hover:text-red-300"
-                    >
-                      Clear All
-                    </button>
-                    <button
-                      onClick={() => setShowHistory(false)}
-                      className="text-gray-400 hover:text-white"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-                {tokenHistory.length === 0 ? (
-                  <p className="text-xs text-gray-500">No history yet</p>
-                ) : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {tokenHistory.map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => loadFromHistory(item)}
-                        className="p-2 bg-gray-800 rounded cursor-pointer hover:bg-gray-700 transition-colors"
-                      >
-                        <div className="text-xs text-gray-400 mb-1">
-                          {new Date(item.timestamp).toLocaleString()}
-                        </div>
-                        <div className="text-xs font-mono text-gray-300 truncate">
-                          {item.token.substring(0, 50)}...
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Batch Processing Panel */}
-            {showBatchMode && (
-              <div className="mt-4 p-4 bg-gray-900 rounded border border-gray-700">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-purple-400">Batch Expiration Update</h3>
-                  <button
-                    onClick={() => setShowBatchMode(false)}
-                    className="text-gray-400 hover:text-white"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs text-gray-400 mb-1 block">
-                      Paste multiple JWT tokens (one per line)
-                    </label>
-                    <textarea
-                      value={batchTokens}
-                      onChange={(e) => setBatchTokens(e.target.value)}
-                      className="w-full h-32 bg-gray-800 text-white rounded p-3 font-mono text-xs border border-gray-600 focus:border-purple-500 focus:outline-none resize-none"
-                      placeholder="eyJhbGc...&#10;eyJhbGc...&#10;eyJhbGc..."
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-400 mb-1 block">
-                      New Expiration Time (Epoch)
-                    </label>
-                    <input
-                      type="number"
-                      value={batchExpValue}
-                      onChange={(e) => setBatchExpValue(e.target.value)}
-                      className="w-full bg-gray-800 text-white rounded p-3 font-mono text-xs border border-gray-600 focus:border-purple-500 focus:outline-none"
-                      placeholder="1735689600"
-                    />
-                  </div>
-                  <button
-                    onClick={processBatchTokens}
-                    className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded font-medium text-sm transition-colors"
-                  >
-                    Process Tokens
-                  </button>
-                  <p className="text-xs text-gray-500">
-                    This will update the exp field for all valid tokens
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -853,6 +844,235 @@ function App() {
           </p>
         </footer>
       </main>
+
+      {/* History Modal */}
+      <Modal 
+        isOpen={showHistory} 
+        onClose={() => setShowHistory(false)}
+        title="Token History (Last 10)"
+        size="lg"
+        closeOnOutsideClick={false}
+      >
+        {tokenHistory.length === 0 ? (
+          <p className="text-center text-gray-500 py-8">No history yet</p>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex justify-end mb-2">
+              <button
+                onClick={clearHistory}
+                className="px-3 py-1.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded transition-colors"
+              >
+                Clear All
+              </button>
+            </div>
+            <div className="space-y-2">
+              {tokenHistory.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => loadFromHistory(item)}
+                  className="p-4 bg-gray-900 rounded border border-gray-700 cursor-pointer hover:border-blue-500 hover:bg-gray-900/50 transition-all"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-sm text-gray-400">
+                      {new Date(item.timestamp).toLocaleString()}
+                    </div>
+                    <div className="text-xs text-blue-400">Click to load</div>
+                  </div>
+                  <div className="text-xs font-mono text-gray-300 break-all">
+                    {item.token}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Batch Processing Modal */}
+      <Modal 
+        isOpen={showBatchMode} 
+        onClose={() => {
+          setShowBatchMode(false);
+          resetBatchProcessing();
+        }}
+        title="Batch Expiration Update"
+        size="xl"
+        closeOnOutsideClick={false}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm text-gray-400 mb-2 block">
+              Paste multiple JWT tokens (one per line)
+            </label>
+            <textarea
+              value={batchTokens}
+              onChange={(e) => setBatchTokens(e.target.value)}
+              onKeyDown={(e) => {
+                // Prevent form submission or other unwanted behaviors
+                if (e.key === 'Enter') {
+                  e.stopPropagation();
+                }
+              }}
+              className="w-full h-40 bg-gray-900 text-white rounded p-4 font-mono text-sm border border-gray-600 focus:border-purple-500 focus:outline-none resize-none overflow-auto"
+              placeholder="eyJhbGc...&#10;eyJhbGc...&#10;eyJhbGc..."
+            />
+          </div>
+
+          <div>
+            <label className="text-sm text-gray-400 mb-2 block">
+              New Expiration Time
+            </label>
+            <div className="flex gap-2 mb-2">
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setBatchExpMode('epoch')}
+                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                  batchExpMode === 'epoch'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                }`}
+              >
+                Epoch
+              </button>
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setBatchExpMode('gmt')}
+                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                  batchExpMode === 'gmt'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                }`}
+              >
+                GMT
+              </button>
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setBatchExpMode('local')}
+                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                  batchExpMode === 'local'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                }`}
+              >
+                Local
+              </button>
+            </div>
+            {batchExpMode === 'epoch' ? (
+              <input
+                type="number"
+                value={batchExpValue}
+                onChange={(e) => setBatchExpValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    processBatchTokens();
+                  }
+                }}
+                className="w-full bg-gray-900 text-white rounded p-3 font-mono text-sm border border-gray-600 focus:border-purple-500 focus:outline-none"
+                placeholder="1735689600"
+              />
+            ) : (
+              <input
+                type="datetime-local"
+                value={batchExpValue}
+                onChange={(e) => setBatchExpValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    processBatchTokens();
+                  }
+                }}
+                className="w-full bg-gray-900 text-white rounded p-3 font-mono text-sm border border-gray-600 focus:border-purple-500 focus:outline-none"
+              />
+            )}
+          </div>
+
+          <button
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={processBatchTokens}
+            className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded font-medium transition-colors"
+          >
+            Process Tokens
+          </button>
+
+          {/* Error Messages */}
+          {batchErrors.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-red-400 font-medium">
+                <AlertCircle className="w-5 h-5" />
+                <span>Errors ({batchErrors.length})</span>
+              </div>
+              <div className="space-y-1">
+                {batchErrors.map((error, index) => (
+                  <div key={index} className="p-3 bg-red-900/20 border border-red-500/30 rounded text-sm text-red-300">
+                    {error}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Processed Tokens */}
+          {processedBatchTokens.length > 0 && (
+            <div className="border-t border-gray-700 pt-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-purple-400">
+                  Processed Tokens ({processedBatchTokens.length})
+                </h3>
+                <button
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    const allTokens = processedBatchTokens.map(t => t.newToken).join('\n');
+                    copyToClipboard(allTokens, 'all-batch');
+                  }}
+                  className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 rounded transition-colors flex items-center gap-2"
+                >
+                  {copiedField === 'all-batch' ? (
+                    <>
+                      <CheckCircle className="w-4 h-4 text-green-400" />
+                      <span className="text-green-400">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      <span>Copy All</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <div className="space-y-3">
+                {processedBatchTokens.map((item, index) => (
+                  <div key={index} className="p-4 bg-gray-900 rounded border border-gray-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-purple-400">Token #{item.lineNumber}</span>
+                      <button
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => copyToClipboard(item.newToken, `batch-${index}`)}
+                        className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded transition-colors"
+                        title="Copy Token"
+                      >
+                        {copiedField === `batch-${index}` ? (
+                          <CheckCircle className="w-4 h-4 text-green-400" />
+                        ) : (
+                          <Copy className="w-4 h-4 text-gray-300" />
+                        )}
+                      </button>
+                    </div>
+                    <div className="text-xs font-mono text-gray-300 break-all mb-2">
+                      {item.newToken}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      New exp: {item.newExp} ({new Date(item.newExp * 1000).toLocaleString()})
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
