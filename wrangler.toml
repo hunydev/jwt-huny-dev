@@ -1,0 +1,11 @@
+name = "jwt-huny-dev"
+main = "workers-site/index.js"
+compatibility_date = "2024-01-01"
+workers_dev = false
+
+routes = [
+  { pattern = "jwt.huny.dev", custom_domain = true }
+]
+
+[site]
+bucket = "./dist"
