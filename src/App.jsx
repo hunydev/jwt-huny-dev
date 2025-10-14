@@ -82,11 +82,14 @@ function App() {
     }
   };
 
-  // Verify token signature
+  // Verify token signature (ignore expiration for signature verification)
   const verifyToken = async (jwtToken, secretKey) => {
     try {
       const encodedSecret = new TextEncoder().encode(secretKey);
-      await jwtVerify(jwtToken, encodedSecret);
+      // Disable exp validation - we only check signature validity
+      await jwtVerify(jwtToken, encodedSecret, {
+        clockTolerance: Infinity // Accept any expiration time
+      });
       setIsVerified(true);
     } catch (error) {
       setIsVerified(false);
@@ -193,9 +196,13 @@ function App() {
       setExpDateValue(date.toISOString().slice(0, 16));
     } else if (expEditMode === 'local') {
       const date = new Date(epochTime * 1000);
-      const offset = date.getTimezoneOffset() * 60000;
-      const localDate = new Date(date.getTime() - offset);
-      setExpDateValue(localDate.toISOString().slice(0, 16));
+      // Format as local datetime for datetime-local input (YYYY-MM-DDTHH:mm)
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      setExpDateValue(`${year}-${month}-${day}T${hours}:${minutes}`);
     }
   };
 
@@ -212,9 +219,13 @@ function App() {
           setExpDateValue(date.toISOString().slice(0, 16));
         } else if (mode === 'local') {
           const date = new Date(payloadObj.exp * 1000);
-          const offset = date.getTimezoneOffset() * 60000;
-          const localDate = new Date(date.getTime() - offset);
-          setExpDateValue(localDate.toISOString().slice(0, 16));
+          // Format as local datetime for datetime-local input (YYYY-MM-DDTHH:mm)
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          setExpDateValue(`${year}-${month}-${day}T${hours}:${minutes}`);
         }
       }
     } catch (error) {
@@ -233,11 +244,11 @@ function App() {
       if (expEditMode === 'epoch') {
         newExpTime = parseInt(value);
       } else if (expEditMode === 'gmt') {
-        newExpTime = Math.floor(new Date(value).getTime() / 1000);
+        // GMT datetime-local input: treat as UTC
+        newExpTime = Math.floor(new Date(value + ':00Z').getTime() / 1000);
       } else if (expEditMode === 'local') {
-        const date = new Date(value);
-        const offset = date.getTimezoneOffset() * 60000;
-        newExpTime = Math.floor((date.getTime() + offset) / 1000);
+        // Local datetime-local input: browser automatically treats this as local time
+        newExpTime = Math.floor(new Date(value).getTime() / 1000);
       }
       
       if (!isNaN(newExpTime)) {
