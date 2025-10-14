@@ -46,6 +46,13 @@ function App() {
     generateToken(defaultHeader, defaultPayload, secret);
   }, []);
 
+  // Verify token whenever token or secret changes
+  useEffect(() => {
+    if (token && secret) {
+      verifyToken(token, secret);
+    }
+  }, [token, secret]);
+
   // Generate JWT token from header and payload
   const generateToken = async (headerObj, payloadObj, secretKey) => {
     try {
@@ -66,7 +73,6 @@ function App() {
       
       setToken(jwt);
       updateTokenParts(jwt);
-      verifyToken(jwt, secretKey);
       
       // Save to history
       saveToHistory(jwt, headerObj, payloadObj);
@@ -136,8 +142,8 @@ function App() {
       const payloadObj = JSON.parse(payload);
       generateToken(headerObj, payloadObj, value);
     } catch (error) {
-      // Generate token anyway with new secret
-      verifyToken(token, value);
+      // If JSON parsing fails, token verification will be handled by useEffect
+      // This will show invalid signature if the token was signed with a different secret
     }
   };
 
@@ -158,9 +164,9 @@ function App() {
         updateExpEditValue(decodedPayload.exp);
       }
       
-      verifyToken(value, secret);
+      // Token verification will be handled by useEffect
     } catch (error) {
-      // Invalid token, wait for valid input
+      // Invalid token format - can't even decode
       setIsVerified(null);
     }
   };
@@ -255,6 +261,12 @@ function App() {
     setHeader(JSON.stringify(historyItem.header, null, 2));
     setPayload(JSON.stringify(historyItem.payload, null, 2));
     updateTokenParts(historyItem.token);
+    
+    // Update exp edit value if exp exists
+    if (historyItem.payload.exp) {
+      updateExpEditValue(historyItem.payload.exp);
+    }
+    
     setShowHistory(false);
   };
 
