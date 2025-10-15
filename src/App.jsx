@@ -86,6 +86,8 @@ function App() {
   const [isBase64Mode, setIsBase64Mode] = useState(false);
   const [secretBinary, setSecretBinary] = useState(null);
   const [showBinaryPlaceholder, setShowBinaryPlaceholder] = useState(false);
+  const [headerJsonError, setHeaderJsonError] = useState(null);
+  const [payloadJsonError, setPayloadJsonError] = useState(null);
   const [expEditMode, setExpEditMode] = useState('epoch'); // 'epoch', 'gmt', 'local'
   const [expDateValue, setExpDateValue] = useState('');
   
@@ -166,11 +168,37 @@ function App() {
   const updateTokenParts = (jwtToken) => {
     if (!jwtToken || jwtToken.trim() === '') {
       setTokenParts({ header: '', payload: '', signature: '', error: false, errorType: '', errorMessage: '' });
+      setHeaderJsonError(null);
+      setPayloadJsonError(null);
       return;
     }
     
     const parts = jwtToken.split('.');
     if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+      // Validate decoded header and payload JSON
+      try {
+        const decodedHeader = decodeProtectedHeader(jwtToken);
+        const headerString = JSON.stringify(decodedHeader, null, 2);
+        setHeader(headerString);
+        setHeaderJsonError(null);
+      } catch (error) {
+        setHeaderJsonError('Failed to decode header: ' + error.message);
+      }
+      
+      try {
+        const decodedPayload = decodeJwt(jwtToken);
+        const payloadString = JSON.stringify(decodedPayload, null, 2);
+        setPayload(payloadString);
+        setPayloadJsonError(null);
+        
+        // Update exp edit value if exp exists
+        if (decodedPayload.exp) {
+          updateExpEditValue(decodedPayload.exp);
+        }
+      } catch (error) {
+        setPayloadJsonError('Failed to decode payload: ' + error.message);
+      }
+      
       setTokenParts({
         header: parts[0],
         payload: parts[1],
@@ -194,13 +222,30 @@ function App() {
   // Handle header change
   const handleHeaderChange = (value) => {
     setHeader(value);
+    
+    // Validate JSON format
     try {
       const headerObj = JSON.parse(value);
-      const payloadObj = JSON.parse(payload);
-      const encodedSecret = secretBinary || new TextEncoder().encode(secret);
-      generateToken(headerObj, payloadObj, secret, encodedSecret);
+      setHeaderJsonError(null);
+      
+      try {
+        const payloadObj = JSON.parse(payload);
+        const encodedSecret = secretBinary || new TextEncoder().encode(secret);
+        generateToken(headerObj, payloadObj, secret, encodedSecret);
+      } catch (payloadError) {
+        // Payload JSON is invalid, but header is valid
+        setTokenParts({
+          header: '',
+          payload: '',
+          signature: '',
+          error: true,
+          errorType: 'invalidJson',
+          errorMessage: 'Invalid JSON in Payload'
+        });
+      }
     } catch (error) {
-      // Invalid JSON - show error in token parts
+      // Invalid JSON in header
+      setHeaderJsonError(error.message);
       setTokenParts({
         header: '',
         payload: '',
@@ -215,18 +260,35 @@ function App() {
   // Handle payload change
   const handlePayloadChange = (value) => {
     setPayload(value);
+    
+    // Validate JSON format
     try {
-      const headerObj = JSON.parse(header);
       const payloadObj = JSON.parse(value);
-      const encodedSecret = secretBinary || new TextEncoder().encode(secret);
-      generateToken(headerObj, payloadObj, secret, encodedSecret);
+      setPayloadJsonError(null);
       
-      // Update exp edit value if exp exists
-      if (payloadObj.exp) {
-        updateExpEditValue(payloadObj.exp);
+      try {
+        const headerObj = JSON.parse(header);
+        const encodedSecret = secretBinary || new TextEncoder().encode(secret);
+        generateToken(headerObj, payloadObj, secret, encodedSecret);
+        
+        // Update exp edit value if exp exists
+        if (payloadObj.exp) {
+          updateExpEditValue(payloadObj.exp);
+        }
+      } catch (headerError) {
+        // Header JSON is invalid, but payload is valid
+        setTokenParts({
+          header: '',
+          payload: '',
+          signature: '',
+          error: true,
+          errorType: 'invalidJson',
+          errorMessage: 'Invalid JSON in Header'
+        });
       }
     } catch (error) {
-      // Invalid JSON - show error in token parts
+      // Invalid JSON in payload
+      setPayloadJsonError(error.message);
       setTokenParts({
         header: '',
         payload: '',
@@ -368,24 +430,7 @@ function App() {
   const handleTokenChange = (value) => {
     setToken(value);
     updateTokenParts(value);
-    
-    try {
-      const decodedHeader = decodeProtectedHeader(value);
-      const decodedPayload = decodeJwt(value);
-      
-      setHeader(JSON.stringify(decodedHeader, null, 2));
-      setPayload(JSON.stringify(decodedPayload, null, 2));
-      
-      // Update exp edit value if exp exists
-      if (decodedPayload.exp) {
-        updateExpEditValue(decodedPayload.exp);
-      }
-      
-      // Token verification will be handled by useEffect
-    } catch (error) {
-      // Invalid token format - can't even decode
-      setIsVerified(null);
-    }
+    // updateTokenParts already handles header/payload decoding and validation
   };
 
   // Update exp edit value based on mode
@@ -800,13 +845,25 @@ function App() {
             <textarea
               value={header}
               onChange={(e) => handleHeaderChange(e.target.value)}
-              className="w-full h-48 bg-gray-900 text-white rounded p-4 font-mono text-sm border border-gray-600 focus:border-red-500 focus:outline-none resize-none"
+              className={`w-full h-48 bg-gray-900 text-white rounded p-4 font-mono text-sm border focus:outline-none resize-none ${
+                headerJsonError ? 'border-red-500' : 'border-gray-600 focus:border-red-500'
+              }`}
               placeholder='{"alg": "HS256", "typ": "JWT"}'
             />
-            <div className="mt-2">
-              <div className="text-xs text-gray-400 mb-1">Standard Header Claims (RFC 7519):</div>
-              {renderClaimBadges(STANDARD_HEADER_CLAIMS, true)}
-            </div>
+            {headerJsonError ? (
+              <div className="mt-2 flex items-center gap-2 p-3 bg-red-900/20 border border-red-500/30 rounded text-red-400">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <div>
+                  <div className="text-sm font-medium">Invalid JSON Format</div>
+                  <div className="text-xs text-red-300 mt-1">{headerJsonError}</div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2">
+                <div className="text-xs text-gray-400 mb-1">Standard Header Claims (RFC 7519):</div>
+                {renderClaimBadges(STANDARD_HEADER_CLAIMS, true)}
+              </div>
+            )}
           </div>
 
           {/* Payload Section */}
@@ -828,13 +885,25 @@ function App() {
             <textarea
               value={payload}
               onChange={(e) => handlePayloadChange(e.target.value)}
-              className="w-full h-48 bg-gray-900 text-white rounded p-4 font-mono text-sm border border-gray-600 focus:border-purple-500 focus:outline-none resize-none"
-              placeholder='{"sub": "1234567890", "name": "John Doe"}'
+              className={`w-full h-48 bg-gray-900 text-white rounded p-4 font-mono text-sm border focus:outline-none resize-none ${
+                payloadJsonError ? 'border-red-500' : 'border-gray-600 focus:border-purple-500'
+              }`}
+              placeholder='{"sub": "1234567890", "name": "John Doe", "iat": 1516239022}'
             />
-            <div className="mt-2">
-              <div className="text-xs text-gray-400 mb-1">Standard Payload Claims (RFC 7519):</div>
-              {renderClaimBadges(STANDARD_PAYLOAD_CLAIMS, false)}
-            </div>
+            {payloadJsonError ? (
+              <div className="mt-2 flex items-center gap-2 p-3 bg-red-900/20 border border-red-500/30 rounded text-red-400">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <div>
+                  <div className="text-sm font-medium">Invalid JSON Format</div>
+                  <div className="text-xs text-red-300 mt-1">{payloadJsonError}</div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2">
+                <div className="text-xs text-gray-400 mb-1">Standard Payload Claims (RFC 7519):</div>
+                {renderClaimBadges(STANDARD_PAYLOAD_CLAIMS, false)}
+              </div>
+            )}
           </div>
         </div>
 
