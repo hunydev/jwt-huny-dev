@@ -83,6 +83,9 @@ function App() {
   const [isVerified, setIsVerified] = useState(null);
   const [algorithmSupported, setAlgorithmSupported] = useState(true);
   const [tokenParts, setTokenParts] = useState({ header: '', payload: '', signature: '', error: false, errorType: '', errorMessage: '' });
+  const [isBase64Mode, setIsBase64Mode] = useState(false);
+  const [secretBinary, setSecretBinary] = useState(null);
+  const [showBinaryPlaceholder, setShowBinaryPlaceholder] = useState(false);
   const [expEditMode, setExpEditMode] = useState('epoch'); // 'epoch', 'gmt', 'local'
   const [expDateValue, setExpDateValue] = useState('');
   
@@ -109,20 +112,15 @@ function App() {
     }
   }, []);
 
-  // Initial token generation
-  useEffect(() => {
-    generateToken(defaultHeader, defaultPayload, secret);
-  }, []);
-
   // Verify token whenever token or secret changes
   useEffect(() => {
     if (token && secret) {
-      verifyToken(token, secret);
+      verifyToken(token, secret, secretBinary);
     }
-  }, [token, secret]);
+  }, [token, secret, secretBinary]);
 
   // Generate JWT token from header and payload
-  const generateToken = async (headerObj, payloadObj, secretKey) => {
+  const generateToken = async (headerObj, payloadObj, secretKey, encodedSecret = null) => {
     try {
       // Check algorithm support
       const supportedAlgorithms = ['HS256', 'HS384', 'HS512'];
@@ -134,10 +132,10 @@ function App() {
         return;
       }
 
-      const encodedSecret = new TextEncoder().encode(secretKey);
+      const secretBytes = encodedSecret || new TextEncoder().encode(secretKey);
       const jwt = await new SignJWT(payloadObj)
         .setProtectedHeader(headerObj)
-        .sign(encodedSecret);
+        .sign(secretBytes);
       
       setToken(jwt);
       updateTokenParts(jwt);
@@ -151,9 +149,9 @@ function App() {
   };
 
   // Verify token signature (ignore expiration for signature verification)
-  const verifyToken = async (jwtToken, secretKey) => {
+  const verifyToken = async (jwtToken, secretKey, secretBytes = null) => {
     try {
-      const encodedSecret = new TextEncoder().encode(secretKey);
+      const encodedSecret = secretBytes || new TextEncoder().encode(secretKey);
       // Disable exp validation - we only check signature validity
       await jwtVerify(jwtToken, encodedSecret, {
         clockTolerance: Infinity // Accept any expiration time
@@ -199,7 +197,8 @@ function App() {
     try {
       const headerObj = JSON.parse(value);
       const payloadObj = JSON.parse(payload);
-      generateToken(headerObj, payloadObj, secret);
+      const encodedSecret = secretBinary || new TextEncoder().encode(secret);
+      generateToken(headerObj, payloadObj, secret, encodedSecret);
     } catch (error) {
       // Invalid JSON - show error in token parts
       setTokenParts({
@@ -219,7 +218,8 @@ function App() {
     try {
       const headerObj = JSON.parse(header);
       const payloadObj = JSON.parse(value);
-      generateToken(headerObj, payloadObj, secret);
+      const encodedSecret = secretBinary || new TextEncoder().encode(secret);
+      generateToken(headerObj, payloadObj, secret, encodedSecret);
       
       // Update exp edit value if exp exists
       if (payloadObj.exp) {
@@ -238,11 +238,81 @@ function App() {
     }
   };
 
+  // Check if string is printable
+  const isPrintable = (str) => {
+    // Check if string contains only printable ASCII and common UTF-8 characters
+    return /^[\x20-\x7E\s]*$/.test(str);
+  };
+
+  // Toggle base64 mode
+  const toggleBase64Mode = () => {
+    const newMode = !isBase64Mode;
+    setIsBase64Mode(newMode);
+    
+    if (newMode) {
+      // Switching to base64 mode
+      if (showBinaryPlaceholder && secretBinary) {
+        // Re-encode binary to base64
+        const base64 = btoa(String.fromCharCode(...secretBinary));
+        setSecret(base64);
+        setShowBinaryPlaceholder(false);
+      } else if (secret && secret.trim() !== '') {
+        // Encode current text secret to base64
+        const encoder = new TextEncoder();
+        const bytes = encoder.encode(secret);
+        const base64 = btoa(String.fromCharCode(...bytes));
+        setSecret(base64);
+        setSecretBinary(bytes);
+      }
+    } else {
+      // Switching from base64 mode to text mode
+      if (secretBinary) {
+        // Try to decode binary to text
+        const decoder = new TextDecoder('utf-8', { fatal: false });
+        const decoded = decoder.decode(secretBinary);
+        
+        if (isPrintable(decoded)) {
+          setSecret(decoded);
+          setShowBinaryPlaceholder(false);
+          setSecretBinary(null);
+        } else {
+          // Non-printable characters, show placeholder
+          setSecret('');
+          setShowBinaryPlaceholder(true);
+          // Keep secretBinary for re-toggling
+        }
+      }
+    }
+  };
+
   // Handle secret change
   const handleSecretChange = (value) => {
     setSecret(value);
     
+    // If user starts typing in binary placeholder mode, clear the flag
+    if (showBinaryPlaceholder && value) {
+      setShowBinaryPlaceholder(false);
+      setSecretBinary(null);
+    }
+    
     if (!value || value.trim() === '') {
+      // Check if we're in binary placeholder mode
+      if (showBinaryPlaceholder && secretBinary) {
+        // Use existing secretBinary
+        try {
+          const headerObj = JSON.parse(header);
+          const payloadObj = JSON.parse(payload);
+          generateToken(headerObj, payloadObj, '', secretBinary);
+        } catch (error) {
+          // JSON parsing error
+        }
+        return;
+      }
+      
+      // No secret available
+      if (!showBinaryPlaceholder) {
+        setSecretBinary(null);
+      }
       setTokenParts({
         header: '',
         payload: '',
@@ -254,10 +324,40 @@ function App() {
       return;
     }
     
+    let encodedSecret;
+    
+    if (isBase64Mode) {
+      // Base64 mode: decode base64 to binary
+      try {
+        const binaryString = atob(value);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        setSecretBinary(bytes);
+        encodedSecret = bytes;
+      } catch (error) {
+        setTokenParts({
+          header: '',
+          payload: '',
+          signature: '',
+          error: true,
+          errorType: 'invalidBase64',
+          errorMessage: 'Invalid base64 encoding in secret key'
+        });
+        return;
+      }
+    } else {
+      // Text mode: encode text to binary
+      const encoder = new TextEncoder();
+      encodedSecret = encoder.encode(value);
+      setSecretBinary(null);
+    }
+    
     try {
       const headerObj = JSON.parse(header);
       const payloadObj = JSON.parse(payload);
-      generateToken(headerObj, payloadObj, value);
+      generateToken(headerObj, payloadObj, value, encodedSecret);
     } catch (error) {
       // If JSON parsing fails, token verification will be handled by useEffect
       // This will show invalid signature if the token was signed with a different secret
@@ -358,7 +458,8 @@ function App() {
         setPayload(newPayload);
         
         const headerObj = JSON.parse(header);
-        generateToken(headerObj, payloadObj, secret);
+        const encodedSecret = secretBinary || new TextEncoder().encode(secret);
+        generateToken(headerObj, payloadObj, secret, encodedSecret);
       }
     } catch (error) {
       // Invalid input
@@ -459,10 +560,10 @@ function App() {
         decodedPayload.exp = newExpTime;
         
         // Generate new token with updated exp
-        const encodedSecret = new TextEncoder().encode(secret);
+        const secretBytes = secretBinary || new TextEncoder().encode(secret);
         const newToken = await new SignJWT(decodedPayload)
           .setProtectedHeader(decodedHeader)
-          .sign(encodedSecret);
+          .sign(secretBytes);
         
         processedTokens.push({
           original: token.trim(),
@@ -531,7 +632,8 @@ function App() {
       // Manually trigger token generation
       const headerObj = isHeader ? JSON.parse(newJsonString) : JSON.parse(header);
       const payloadObj = isHeader ? JSON.parse(payload) : JSON.parse(newJsonString);
-      generateToken(headerObj, payloadObj, secret);
+      const encodedSecret = secretBinary || new TextEncoder().encode(secret);
+      generateToken(headerObj, payloadObj, secret, encodedSecret);
       
       // Update exp edit value if exp was added/removed
       if (!isHeader && claimKey === 'exp' && payloadObj.exp) {
@@ -740,16 +842,40 @@ function App() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Secret Section */}
           <div className="bg-gray-800 rounded-lg p-6 shadow-xl border border-gray-700">
-            <h2 className="text-xl font-semibold mb-3 text-cyan-400">Secret Key</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xl font-semibold text-cyan-400">Secret Key</h2>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="text-xs text-gray-400">Base64</span>
+                <div
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={toggleBase64Mode}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${
+                    isBase64Mode ? 'bg-cyan-600' : 'bg-gray-600'
+                  }`}
+                >
+                  <div
+                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                      isBase64Mode ? 'translate-x-5' : ''
+                    }`}
+                  />
+                </div>
+              </label>
+            </div>
             <input
               type="text"
               value={secret}
               onChange={(e) => handleSecretChange(e.target.value)}
               className="w-full bg-gray-900 text-white rounded p-4 font-mono text-sm border border-gray-600 focus:border-cyan-500 focus:outline-none"
-              placeholder="Enter your secret key..."
+              placeholder={
+                showBinaryPlaceholder 
+                  ? "<binary>" 
+                  : (isBase64Mode ? "Enter base64 encoded secret..." : "Enter your secret key...")
+              }
             />
             <div className="mt-2 text-xs text-gray-400">
-              Change the secret to re-sign the token
+              {isBase64Mode 
+                ? "Base64 mode: Secret will be decoded from base64 to binary bytes"
+                : "Text mode: Secret will be used as UTF-8 encoded text"}
             </div>
           </div>
 
