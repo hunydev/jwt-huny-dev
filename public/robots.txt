@@ -1,4 +1,39 @@
+# JWT Encoder/Decoder Tool - Robots.txt
+# Allow all web crawlers to index the site
+
 User-agent: *
 Allow: /
+Crawl-delay: 0
 
+# Sitemap location
 Sitemap: https://jwt.huny.dev/sitemap.xml
+
+# Specific user agents
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0
+
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 0
+
+User-agent: Slurp
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: Baiduspider
+Allow: /
+
+User-agent: YandexBot
+Allow: /
+
+User-agent: facebot
+Allow: /
+
+User-agent: Twitterbot
+Allow: /

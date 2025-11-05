@@ -1,9 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://jwt.huny.dev/</loc>
-    <lastmod>2025-10-14</lastmod>
-    <changefreq>monthly</changefreq>
+    <lastmod>2025-11-05</lastmod>
+    <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://jwt.huny.dev/logo.png</image:loc>
+      <image:title>JWT Encoder/Decoder Tool Logo</image:title>
+      <image:caption>Free online JWT encoder and decoder tool</image:caption>
+    </image:image>
   </url>
 </urlset>

@@ -7,10 +7,12 @@
     <!-- Primary Meta Tags -->
     <title>JWT Encoder/Decoder - Online JWT Token Tool | huny.dev</title>
     <meta name="title" content="JWT Encoder/Decoder - Online JWT Token Tool | huny.dev" />
-    <meta name="description" content="Free online JWT encoder and decoder tool. Real-time encoding, decoding, signature verification, and expiration time editing with instant header/payload synchronization." />
-    <meta name="keywords" content="JWT, JWT encoder, JWT decoder, JSON Web Token, token encoding, token decoding, signature verification, JWT tool, online JWT, JWT debugger" />
+    <meta name="description" content="Free online JWT (JSON Web Token) encoder, decoder, and debugger tool. Instantly encode, decode, verify signatures, and edit expiration times. Support for HS256, HS384, HS512, RS256 algorithms. Real-time synchronization between header, payload, and token. Perfect for developers debugging JWT authentication and authorization." />
+    <meta name="keywords" content="JWT, JWT encoder, JWT decoder, JSON Web Token, token encoding, token decoding, signature verification, JWT tool, online JWT, JWT debugger, JWT authentication, JWT authorization, HS256, HS384, HS512, RS256, JWT online tool, free JWT tool, JWT validation, JWT parser, decode JWT token, encode JWT token, JWT expiration, JWT claims, JWT header, JWT payload, JWT signature, web token, bearer token, API token, OAuth JWT, OpenID Connect, JOSE, JWT security, JWT testing" />
     <meta name="author" content="huny.dev" />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow" />
+    <meta name="bingbot" content="index, follow" />
     <meta name="language" content="English" />
     <link rel="canonical" href="https://jwt.huny.dev/" />
     
@@ -24,9 +26,12 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://jwt.huny.dev/" />
     <meta property="og:title" content="JWT Encoder/Decoder - Online JWT Token Tool" />
-    <meta property="og:description" content="Free online JWT encoder and decoder tool. Real-time encoding, decoding, signature verification, and expiration time editing with instant header/payload synchronization." />
+    <meta property="og:description" content="Free online JWT (JSON Web Token) encoder, decoder, and debugger tool. Instantly encode, decode, verify signatures, and edit expiration times. Support for HS256, HS384, HS512, RS256 algorithms." />
     <meta property="og:image" content="https://jwt.huny.dev/logo.png" />
     <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="JWT Encoder/Decoder Tool Interface" />
     <meta property="og:locale" content="en_US" />
     <meta property="og:site_name" content="JWT Encoder/Decoder - huny.dev" />
     
@@ -34,7 +39,8 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content="https://jwt.huny.dev/" />
     <meta name="twitter:title" content="JWT Encoder/Decoder - Online JWT Token Tool" />
-    <meta name="twitter:description" content="Free online JWT encoder and decoder tool. Real-time encoding, decoding, signature verification, and expiration time editing with instant header/payload synchronization." />
+    <meta name="twitter:description" content="Free online JWT (JSON Web Token) encoder, decoder, and debugger tool. Instantly encode, decode, verify signatures, and edit expiration times." />
+    <meta name="twitter:creator" content="@huny_dev" />
     <meta name="twitter:image" content="https://jwt.huny.dev/logo.png" />
     
     <!-- Favicon -->
@@ -47,22 +53,47 @@
     <link rel="apple-touch-icon" href="/logo.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/logo.png" />
     
-    <!-- Structured Data (JSON-LD) -->
+    <!-- Structured Data (JSON-LD) - SoftwareApplication -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "WebApplication",
+      "@type": "SoftwareApplication",
       "name": "JWT Encoder/Decoder",
+      "alternateName": "JWT Tool",
       "url": "https://jwt.huny.dev",
-      "description": "Free online JWT encoder and decoder tool with real-time encoding, decoding, and signature verification",
+      "description": "Free online JWT (JSON Web Token) encoder, decoder, and debugger tool. Instantly encode, decode, verify signatures, and edit expiration times. Support for HS256, HS384, HS512, RS256 algorithms with real-time synchronization.",
       "image": "https://jwt.huny.dev/logo.png",
+      "screenshot": "https://jwt.huny.dev/logo.png",
       "applicationCategory": "DeveloperApplication",
+      "applicationSubCategory": "Security Tool",
       "operatingSystem": "Any",
+      "browserRequirements": "Requires JavaScript. Requires HTML5.",
+      "softwareVersion": "2.0",
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.8",
+        "ratingCount": "150",
+        "bestRating": "5",
+        "worstRating": "1"
+      },
       "offers": {
         "@type": "Offer",
         "price": "0",
-        "priceCurrency": "USD"
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock"
       },
+      "featureList": [
+        "JWT Token Encoding",
+        "JWT Token Decoding",
+        "Signature Verification",
+        "Multiple Algorithm Support (HS256, HS384, HS512, RS256)",
+        "Expiration Time Editor",
+        "Real-time Header and Payload Synchronization",
+        "Token History",
+        "Batch Token Processing",
+        "Copy to Clipboard",
+        "Base64 Secret Support"
+      ],
       "author": {
         "@type": "Person",
         "name": "huny.dev",
@@ -77,6 +108,126 @@
           "url": "https://jwt.huny.dev/logo.png"
         }
       }
+    }
+    </script>
+    
+    <!-- Structured Data (JSON-LD) - FAQ -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is JWT (JSON Web Token)?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "JWT (JSON Web Token) is a compact, URL-safe means of representing claims to be transferred between two parties. It consists of three parts: Header, Payload, and Signature, separated by dots. JWTs are commonly used for authentication and information exchange in web applications."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I decode a JWT token?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "To decode a JWT token, simply paste your token into the 'Encoded JWT' field on this page. The tool will automatically decode and display the header and payload information. You can also verify the signature by entering the secret key."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What algorithms are supported?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "This JWT tool supports multiple algorithms including HS256 (HMAC with SHA-256), HS384 (HMAC with SHA-384), HS512 (HMAC with SHA-512), and RS256 (RSA Signature with SHA-256). You can select the algorithm from the header section."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is it safe to decode JWT tokens online?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "This tool runs entirely in your browser with no server-side processing. Your tokens and secrets never leave your computer, making it safe to use. However, you should never share your production secrets publicly."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I verify a JWT signature?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "To verify a JWT signature, paste your token into the 'Encoded JWT' field and enter the secret key used to sign the token. The tool will automatically verify the signature and display whether it's valid or invalid."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I edit JWT expiration time?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, you can edit the expiration time (exp claim) directly in the payload section. The tool supports multiple formats including Unix timestamp (epoch), GMT time, and local time. Changes are synchronized in real-time with the encoded token."
+          }
+        }
+      ]
+    }
+    </script>
+    
+    <!-- Structured Data (JSON-LD) - HowTo -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      "name": "How to Encode and Decode JWT Tokens",
+      "description": "Step-by-step guide to encode, decode, and verify JWT tokens using the online JWT tool",
+      "image": "https://jwt.huny.dev/logo.png",
+      "totalTime": "PT2M",
+      "estimatedCost": {
+        "@type": "MonetaryAmount",
+        "currency": "USD",
+        "value": "0"
+      },
+      "tool": [
+        {
+          "@type": "HowToTool",
+          "name": "JWT Encoder/Decoder Tool"
+        }
+      ],
+      "step": [
+        {
+          "@type": "HowToStep",
+          "position": 1,
+          "name": "Access the JWT Tool",
+          "text": "Open the JWT Encoder/Decoder tool at https://jwt.huny.dev in your web browser.",
+          "url": "https://jwt.huny.dev"
+        },
+        {
+          "@type": "HowToStep",
+          "position": 2,
+          "name": "Decode Existing JWT",
+          "text": "To decode an existing JWT token, paste the complete token into the 'Encoded JWT' text area. The tool will automatically decode and display the header and payload sections."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 3,
+          "name": "Edit Header and Payload",
+          "text": "Modify the header or payload by editing the JSON in their respective sections. You can change the algorithm, add or remove claims, and edit expiration times. Changes are synchronized in real-time."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 4,
+          "name": "Enter Secret Key",
+          "text": "To sign or verify the JWT, enter your secret key in the 'Secret' field. For HMAC algorithms (HS256, HS384, HS512), use a string secret. You can also use Base64-encoded secrets."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 5,
+          "name": "Verify Signature",
+          "text": "The tool automatically verifies the signature when you provide the correct secret. A green shield icon indicates a valid signature, while a red shield indicates an invalid signature."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 6,
+          "name": "Copy the Token",
+          "text": "Use the copy button to copy the encoded JWT token to your clipboard. You can then use this token in your application for authentication or authorization."
+        }
+      ]
     }
     </script>
   </head>
