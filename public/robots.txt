@@ -1,24 +1,18 @@
-# JWT Encoder/Decoder Tool - Robots.txt
-# Allow all web crawlers to index the site
-
-User-agent: *
-Allow: /
-Crawl-delay: 0
+# JWT Encoder/Decoder Tool - Custom Rules
+# Note: Cloudflare managed content will be prepended automatically
 
 # Sitemap location
 Sitemap: https://jwt.huny.dev/sitemap.xml
 
-# Specific user agents
+# Specific crawlers that need explicit Allow rules
 User-agent: Googlebot
 Allow: /
-Crawl-delay: 0
 
 User-agent: Googlebot-Image
 Allow: /
 
 User-agent: Bingbot
 Allow: /
-Crawl-delay: 0
 
 User-agent: Slurp
 Allow: /
